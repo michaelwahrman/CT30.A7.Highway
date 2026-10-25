@@ -1,0 +1,73 @@
+<!doctype html><html><head><meta charset="utf-8"><title>CT30.A7.Highways</title><style>body{font-family:Georgia,serif;max-width:900px;margin:40px auto;padding:0 16px;line-height:1.55;background:#faf7ef;color:#222}code,pre{background:#eee6d3;border-radius:4px}pre{padding:10px;overflow:auto}h1,h2,h3{color:#5a3e12}table{border-collapse:collapse}td,th{border:1px solid #d8ccb0;padding:4px 8px;vertical-align:top}blockquote{color:#555;border-left:3px solid #c9b48a;margin-left:0;padding-left:12px}img{max-width:100%}</style></head><body>
+
+<p><strong>Series:</strong> CT51 Evodevo · <strong>Version:</strong> A8 · <strong>Date:</strong> 2026-10-19 · <strong>Har<h1>CT30.A7.Highways — context file</h1>
+<p><strong>Series:</strong> CT30 Highways · <strong>Version:</strong> A7 · <strong>Date:</strong> 2026-10-20 · <strong>Harness:</strong> Claude Harness 5 · <strong>Built from:</strong> CT30.A6.Highways</p>
+<p>Point a later chat at this file to resume the series. The A1–A6 details are in their context files (<code>CT30.A1…A6.Highways/*.md</code>); everything there still holds
+unless changed below.</p>
+<h2>How to run</h2>
+<p>Double-click <code>index.html</code> (Chrome or Edge). It is self-contained: the car photos are in <code>CT30.A7.Highways_cars.js</code> (one atlas, data: URL).
+URL options (new): <code>?boxes=1</code> (start with wire boxes), <code>?lanecolours=0</code>; <code>?tile=</code> is now 210 by default. The older ones still work: <code>?ft=</code>, <code>?mad=0</code>, <code>?suburbs=0</code>, <code>?tile=</code>, <code>?interchanges=0</code>,
+<code>?midi=0</code>, <code>?fps=30</code>, <code>?w=&amp;h=</code>, <code>?q=</code>.</p>
+<h2>Requests</h2>
+<ul>
+<li><strong>A1–A6</strong> (summary): a MIDI-enabled (CT55/CT57-style) traffic-helicopter view of fully congested lanes, each at its own knob speed. Forward / pause / reset / record and a
+  timer, toggled with D. Tilt and height. Interchanges (A2). Eased motion and approach (A3). Suburb photo ground and diagonal overpasses (A4). An Info button, dark-green
+  verges, a higher start (A5). A 1,500 ft start, 348 lanes, six interchanges, mad traffic (A6). Wire boxes stood in for the cars "until the car textures exist" (A1, A2).</li>
+<li><strong>A7</strong> (2026-10-20):<blockquote>
+<p>Car textures named suv *, van *, pickup *, sports *, station * can be found in "C:\Users\micha\Downloads\claude\images\cars".
+They will need to be processed. Recolor them, face them the right way, and use them in the simulation where currently we have outline boxes.</p>
+</blockquote>
+</li>
+</ul>
+<h2>What A7 does</h2>
+<h3>Processing (<code>tools/make_car_atlas.py</code>, needs OpenCV, SciPy, Pillow)</h3>
+<ul>
+<li><strong>Used:</strong> suv 1–4, van 1, pickup 1–2, sports 1 and station 1 (the five named kinds), plus <strong>sedan 1</strong> and <strong>electric 1</strong>, which are the same kind of
+  studio top-down photo in the same folder. <strong>Not used:</strong> "line cars 1–7" (photos of whole jammed roads) and "ncar 1–3" (four cars on pavement in one image).</li>
+<li><strong>Cut out:</strong> GrabCut, starting from a box round the car's edges ("electric 1" has a fixed box because of the stone slab beside it). Keep the largest piece and
+  fill it to its outline (convex hull), because the black windscreens and pickup beds matched the black studio floor. "Pickup 2" is filled to its bounding
+  rectangle for the same reason. The edges are feathered.</li>
+<li><strong>Facing:</strong> every car is turned so its front points forward. The front was read from each photo by where the door mirrors sit (nearer the front): suv 1,
+  van, pickups, station and electric face right in their photos; suv 2–4 and the sedan face left; the sports car faces up.</li>
+<li><strong>Recolourable:</strong> only brightness is kept, bent with a gamma curve so the body paint of every car (black, white, red …) becomes mid grey (0.62). Dark cars are
+  smoothed first and brightened by at most gamma 0.33, so their windows don't turn blotchy.</li>
+<li><strong>Atlas:</strong> a 4 × 4 grid of 1024 × 512 slots, RGBA WebP (alpha = the cut-out), 420 KB as a data: URL. Each car's length is set by type (SUV 4.6–4.85 m,
+  van 5.6, pickup 5.9, sports 4.5, station / sedan 4.9, electric 4.5), and its width comes from the photo's aspect, so nothing is stretched.</li>
+</ul>
+<h3>In the simulation</h3>
+<ul>
+<li>Every car is a textured quad lying on its lane, facing along it (up and down ramps and viaducts too), with a soft shadow offset to one side.</li>
+<li><strong>Paint:</strong> the shader multiplies the grey car by its paint colour. Windows stay dark, and highlights go toward white. The colours are realistic and weighted like US roads (white 23%, black 20%, grey 17%,
+  silver 14%, blue, red, and a few greens, beiges, yellows …), with slight variation, so each car keeps its colour.</li>
+<li>The mix of kinds: SUV 34%, sedan 16%, pickup 14%, station wagon 10%, electric 10%, van 8%, sports 8%.</li>
+<li><strong>Lane colours</strong> (L; on at start): your 8 lanes' cars are painted in their lane colours, so you can still tell your lanes apart. Off: ordinary colours.</li>
+<li><strong>Boxes</strong> (K): the A1–A6 wire boxes come back.</li>
+<li>The long trucks (12–20 m boxes) are gone: there is no truck photo yet.</li>
+</ul>
+<h3>Fix (2026-10-20, same evening): cars twice as big next to the houses</h3>
+<blockquote>
+<p>From the pictures I see, the cars should be bigger relative to the size of the houses. At least twice as big.</p>
+</blockquote>
+<p>The cars stay true to size (they fill 3.66 m lanes; twice as wide would cross into the next lane). Instead, each suburb photo now covers <strong>210 m instead of
+420 m</strong>, so the houses are half the size and the cars twice as big relative to them (<code>TILE</code> in <code>CT30.A7.Highways_main.js</code>; <code>?tile=420</code> gives the old scale).
+Note: the photos are not all at one scale. Some show a few big houses, others many small ones, so some tiles still have small houses. Each tile could be scaled
+to a common house size later. Picture: <code>docs/A7_fix_car_house_scale_300ft.png</code>.</p>
+<h2>Checked (2026-10-20, headless Chromium, software WebGL)</h2>
+<ul>
+<li>No page errors. Pictures in <code>docs/</code>: the start (1,500 ft), 180 ft straight down, 120 ft tilted 40°, an interchange at 55°, and lane colours off.
+  Cars face their direction of travel (for example, the pickups' beds trail behind), and are drawn on every road at every height.</li>
+<li><code>docs/A7_car_atlas.png</code> is the processed atlas; <code>docs/A7_car_photos.jpg</code> shows the originals.</li>
+<li>Not checked: real MIDI, a recorded movie, the frame rate on a real GPU. The quads are lighter to draw than the wire boxes (2 triangles vs 13 lines), and there is one shadow quad per car.</li>
+</ul>
+<h2>Ideas for A8+</h2>
+<ul>
+<li>Truck, bus and semi photos; headlights and taillights for dusk and night.</li>
+<li>More photos per kind for variety; the "ncar" set could be cut out the same way if it is wanted.</li>
+</ul>
+<h2>Files</h2>
+<p>As A6, with <code>CT30.A7.Highways_*</code> names, plus:</p>
+<pre><code>  CT30.A7.Highways_cars.js       A7: the car atlas (generated)
+  tools/make_car_atlas.py        A7: cut out, turn, make recolourable, pack
+</code></pre>
+<p>The changes are in <code>CT30.A7.Highways_main.js</code> (car types, paint, textured quads and shadows, Boxes / Lane colours) and <code>index.html</code> / MIDI (two buttons).</p>
+</body></html>

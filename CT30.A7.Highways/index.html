@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CT30.A7 Highways</title>
+<style>
+  :root {
+    --bar: #23222b; --bar2: #2d2c37; --ink: #f1eef6; --dim: #a9a4b8; --line: #3d3b49;
+    --rose: #f7b5c9; --peach: #ffd2a8; --butter: #f9eaa0; --mint: #b6ecd0; --sky: #b4d6f7; --lilac: #d5c2f5; --red: #ff6f7d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #1b1a21; color: var(--ink); font: 13px/1.3 "Segoe UI", "Helvetica Neue", Arial, sans-serif; overflow: hidden; }
+  body { display: flex; flex-direction: column; }
+  #stage { position: relative; flex: 1 1 auto; min-height: 0; background: #a7b2bb; }
+  #c { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: contain; cursor: grab; touch-action: none; }
+  #c.drag { cursor: grabbing; }
+
+  /* HUD, help, toasts: page elements over the picture -- never in the movie */
+  #hud { position: absolute; left: 12px; top: 10px; padding: 8px 11px; border-radius: 10px; background: rgba(35, 34, 43, .62); backdrop-filter: blur(4px);
+         font: 12px/1.45 ui-monospace, Consolas, Menlo, monospace; white-space: pre; pointer-events: none; color: #f4f1f8; }
+  #hud b { color: var(--butter); font-weight: 600; }
+  #hint { position: absolute; right: 12px; top: 10px; font-size: 12px; color: rgba(240, 232, 220, .75); text-align: right; pointer-events: none; line-height: 1.5; }
+  body.nohud #hud, body.nohud #hint { display: none; }
+  #toast { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); max-width: min(760px, 92%); padding: 9px 14px; border-radius: 10px;
+           background: rgba(35, 34, 43, .9); color: var(--ink); font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; text-align: center; }
+  #toast.on { opacity: 1; }
+  #toast a { color: var(--butter); pointer-events: auto; }
+  #recDot { position: absolute; right: 14px; bottom: 12px; padding: 5px 10px; border-radius: 20px; background: rgba(35, 34, 43, .78); color: #fff; font-weight: 600; display: none; }
+  body.recording #recDot { display: block; }
+  #recDot i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--red); margin-right: 6px; animation: blink 1s steps(2) infinite; vertical-align: -1px; }
+  @keyframes blink { 50% { opacity: .25; } }
+
+  /* the button bar, lower part of the screen (outside the picture) */
+  #bar { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 8px 9px; align-items: stretch; justify-content: center; padding: 9px 8px 8px; background: var(--bar); border-top: 1px solid var(--line); }
+  .grp { display: flex; gap: 4px; align-items: stretch; padding: 4px 6px 5px; border-radius: 11px; background: var(--bar2); position: relative; }
+  .grp > .gl { position: absolute; top: -7px; left: 10px; font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); background: var(--bar); padding: 0 5px; border-radius: 4px; }
+  button { font: inherit; color: var(--ink); background: #3a3846; border: 1px solid #4a4858; border-radius: 8px; padding: 6px 9px 5px; cursor: pointer; min-width: 40px;
+           display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; user-select: none; -webkit-user-select: none; transition: background .12s, border-color .12s, transform .05s; }
+  button:hover { background: #46434f; }
+  button:active, button.hit { transform: translateY(1px); background: #504c5c; }
+  button .t { font-weight: 600; white-space: nowrap; }
+  button .m { font-size: 9.5px; color: var(--dim); white-space: nowrap; min-height: 11px; }
+  button.tog::before { content: ""; width: 26px; height: 4px; border-radius: 3px; background: #55525f; margin-bottom: 2px; }
+  button.tog.on::before { background: var(--c, var(--mint)); box-shadow: 0 0 8px var(--c, var(--mint)); }
+  button.tog.on { border-color: var(--c, var(--mint)); }
+  button.learn { outline: 2px dashed var(--butter); outline-offset: 2px; }
+  .val { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 50px; padding: 0 2px; }
+  .val .v { font: 600 15px/1.1 ui-monospace, Consolas, Menlo, monospace; color: var(--butter); }
+  .val .u { font-size: 9.5px; color: var(--dim); }
+  button.small { min-width: 28px; padding: 4px 5px; }
+  button.small .t { font-size: 15px; line-height: 1; }
+  #b_record.on { --c: var(--red); background: #5a2f39; }
+  #b_record .t::before { content: "● "; color: var(--red); }
+
+  /* panels */
+  .panel { position: absolute; left: 12px; top: 12px; width: min(560px, 44%); max-height: calc(100% - 24px); overflow: auto; padding: 16px 20px;
+           border-radius: 14px; background: rgba(35, 34, 43, .96); color: var(--ink); box-shadow: 0 10px 40px rgba(0,0,0,.35); display: none; z-index: 5; }
+  .panel.on { display: block; }
+  .panel h2 { margin: 0 0 8px; font-size: 17px; color: var(--rose); }
+  .panel h3 { margin: 14px 0 4px; font-size: 13px; color: var(--butter); }
+  .panel p, .panel li { color: #dcd7e6; line-height: 1.5; }
+  .panel table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  .panel td, .panel th { border-bottom: 1px solid #3d3b49; padding: 3px 6px; text-align: left; }
+  .panel th { color: var(--dim); font-weight: 600; }
+  .panel kbd { font: 11px ui-monospace, Consolas, monospace; background: #45424f; border-radius: 4px; padding: 1px 5px; }
+  .panel .x { position: absolute; right: 12px; top: 10px; min-width: 0; padding: 2px 9px; }
+  .panel .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .panel .row button { flex-direction: row; }
+  .learned { color: var(--butter); }
+  select { font: inherit; color: var(--ink); background: #3a3846; border: 1px solid #4a4858; border-radius: 6px; padding: 3px 5px; }
+  body.nobar #bar { display: none; }
+  .timer { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 96px; padding: 0 6px; }
+  .timer .v { font: 600 22px/1.05 ui-monospace, Consolas, Menlo, monospace; color: var(--butter); letter-spacing: .02em; }
+  .timer .u { font-size: 9.5px; color: var(--dim); }
+  .lane { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 1px; }
+  .lane .v { font: 600 13px/1.1 ui-monospace, Consolas, Menlo, monospace; color: var(--ink); min-width: 34px; text-align: center; border-bottom: 3px solid var(--lc, #888); padding-bottom: 1px; cursor: pointer; }
+  .lane .v.stopped { color: var(--red); }
+  .lane .pm { display: flex; gap: 2px; }
+  .lane button.small { min-width: 20px; padding: 2px 3px; }
+  .lane button.small .t { font-size: 13px; }
+  .lane .u { font-size: 9px; color: var(--dim); }
+  #hud .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <div id="hud"></div>
+  <div id="hint">drag = move · right-drag = turn / tilt · wheel = height · hold W / S = approach / back · double-click = home<br>
+    right-click a button = assign a MIDI control · <b>?</b> help · <b>D</b> buttons · <b>I</b> info on / off</div>
+  <div id="toast"></div>
+  <div id="recDot"><i></i><span id="recTime">0:00</span></div>
+
+  <div class="panel" id="helpPanel">
+    <button class="x" data-close>✕</button>
+    <h2>CT30.A7 · Highways</h2>
+    <p>A traffic helicopter over a jammed freeway network gone mad: 348 lanes, six interchanges, express viaducts and four diagonal freeways high over everything. Everything moves smoothly: the helicopter eases into and out of every move, and lanes ease up to speed and down to a stop. Your 8 northbound lanes are bumper to bumper; nobody changes lanes, and each lane
+      moves at its own speed (knobs 1–8). Around them: the southbound side, ramp lanes running between interchanges, three cross freeways and,
+      1.7 km west, a parallel freeway. Below you is suburbia (from the suburb photos); three diagonal freeways cross everything on overpasses, at angles, with no ramps. Every 3.2 km there is a freeway-to-freeway interchange — a <b>cloverleaf</b> (south), a six-level
+      <b>stack</b> (middle) and a <b>cloverstack</b> (north) — and every ramp carries its own lane of jammed traffic. <b>Next ▸</b> flies you to
+      the next one. The roads are fixed; only the traffic moves. Cars are your top-down car photos (SUVs, vans, pickups, sports cars, station wagons, a sedan and an electric coupé), each repainted in a realistic colour.</p>
+    <h3>Buttons and keys</h3>
+    <table>
+      <tr><th>Button</th><th>Key</th><th>What it does</th></tr>
+      <tr><td>Reset</td><td><kbd>Backspace</kbd></td><td>timer to 0, traffic back to the start, helicopter home (lane settings stay)</td></tr>
+      <tr><td>Forward ▶ / Pause ❚❚</td><td><kbd>Enter</kbd> / <kbd>P</kbd> (<kbd>Space</kbd> toggles)</td><td>run / freeze the traffic, the helicopter and the timer (the camera still moves)</td></tr>
+      <tr><td>● Record</td><td><kbd>R</kbd></td><td>movie of the picture with sound, at the picture's real pixel size; press again to stop — the MP4 downloads</td></tr>
+      <tr><td>Lane − / + (8 lanes)</td><td><kbd>Ctrl</kbd>+<kbd>1</kbd>…<kbd>8</kbd> / <kbd>Shift</kbd>+<kbd>1</kbd>…<kbd>8</kbd></td><td>lane speed, 5 mph steps (knobs 1–8: 1 mph a click). Click a lane's number (or press <kbd>1</kbd>–<kbd>8</kbd>) to stop / restart that lane</td></tr>
+      <tr><td>Stop all</td><td><kbd>X</kbd></td><td>every lane stops (press again: they all move off)</td></tr>
+      <tr><td>Mad</td><td><kbd>J</kbd></td><td>traffic gone mad (on at start): every lane, yours too, lurches between a dead stop and up to 2.6× its speed (90 mph at most) every 1.5–6 s, braking and accelerating hard. Off: the calm traffic of A5</td></tr>
+      <tr><td>Auto</td><td><kbd>Z</kbd></td><td>your lanes stop and go by themselves, within the speeds you set</td></tr>
+      <tr><td>Higher / Lower</td><td><kbd>↑</kbd> <kbd>↓</kbd> (wheel)</td><td>helicopter height, 50 ft to 15,000 ft</td></tr>
+      <tr><td>Tilt</td><td><kbd>T</kbd></td><td>straight down → 55° → 25° (see the traffic far ahead) → straight down</td></tr>
+      <tr><td>Follow</td><td><kbd>G</kbd></td><td>the helicopter flies at the average speed of your 8 lanes (on at start)</td></tr>
+      <tr><td>Hover / heli − +</td><td><kbd>0</kbd> / <kbd>-</kbd> <kbd>=</kbd></td><td>helicopter speed in mph (the X-TOUCH fader sets it 0–80)</td></tr>
+      <tr><td>Others − / +</td><td><kbd>,</kbd> <kbd>.</kbd></td><td>speed of all the other roads' traffic</td></tr>
+      <tr><td>Interchanges</td><td><kbd>N</kbd></td><td>the interchange network on (at start) / off (just the corridor and the parallel freeway)</td></tr>
+      <tr><td>◂ Prev / Next ▸</td><td><kbd>B</kbd> / <kbd>V</kbd></td><td>glide smoothly to the previous / next interchange, keeping your tilt and height (it climbs to 2,500 ft if you are below 1,500 ft); tilted, it stops far enough back that the interchange is in the middle of the picture. The helicopter then hovers</td></tr>
+      <tr><td>Approach ⇡ / Back ⇣ (hold)</td><td><kbd>W</kbd> / <kbd>S</kbd> (<kbd>Q</kbd> <kbd>E</kbd> sideways, <kbd>Shift</kbd> = 3× faster)</td><td>fly toward what you are looking at (tilt first, then approach the interchange), easing in and out; faster when higher</td></tr>
+      <tr><td>Suburbs</td><td><kbd>U</kbd></td><td>the ground: suburbia tiled from your "suburb N.webp" photos (on at start) / the plain dark grid</td></tr>
+      <tr><td>Boxes</td><td><kbd>K</kbd></td><td>the A1–A6 wire boxes instead of the car photos</td></tr>
+      <tr><td>Lane colours</td><td><kbd>L</kbd></td><td>on: the cars in your 8 lanes are painted in their lane colours; off: ordinary colours like everyone else</td></tr>
+      <tr><td>Sound</td><td><kbd>M</kbd></td><td>road roar and rotor (off at start)</td></tr>
+      <tr><td>Info</td><td><kbd>I</kbd> or <kbd>H</kbd></td><td>show / hide the text in the corners of the picture (the information at the top left and the hints at the top right)</td></tr>
+      <tr><td>—</td><td><kbd>D</kbd></td><td>show / hide the buttons</td></tr>
+    </table>
+    <h3>MIDI</h3>
+    <p>X-TOUCH MINI: knobs 1–8 = lane 1–8 speed (push = stop/go that lane), fader = helicopter speed, top row = Reset, Forward, Pause, Record,
+      Higher, Lower, Tilt, Interchanges; bottom row = Stop all, Auto, Follow, Hover, Others −, Others +, Sound, D. LAYER A = Next interchange, LAYER B = text.
+      Launchpad Mini: rows 1–2 = the same 16 buttons; rows 3–8 = a speed ladder per lane (column = lane, top row 60 mph … bottom row stop).
+      nanoKEY2: see the MIDI panel. Right-click any on-screen button, then press a MIDI control, to assign it.</p>
+  </div>
+
+  <div class="panel" id="midiPanel">
+    <button class="x" data-close>✕</button>
+    <h2>MIDI</h2>
+    <p id="midiStatus">—</p>
+    <div id="midiDevices"></div>
+    <p>Right-click any button below the picture, then press the MIDI control you want for it (Esc cancels). Learned controls are kept in this browser
+      and shown in <span class="learned">yellow</span>; the defaults come from <code>CT30.A7.Highways_midimap.js</code>.</p>
+    <div class="row">
+      <button id="midiConnect"><span class="t">Connect MIDI devices</span></button>
+      <button id="midiForget"><span class="t">Forget learned MIDI</span></button>
+      <label style="align-self:center">Movie frame rate <select id="fpsSel"><option value="60">60 fps</option><option value="30">30 fps</option></select></label>
+    </div>
+  </div>
+</div>
+
+<div id="bar">
+  <div class="grp"><span class="gl">Run</span>
+    <button data-action="reset"><span class="t">Reset</span><span class="m"></span></button>
+    <button data-action="forward" class="tog" style="--c:var(--mint)"><span class="t">Forward ▶</span><span class="m"></span></button>
+    <button data-action="pause" class="tog" style="--c:var(--butter)"><span class="t">Pause ❚❚</span><span class="m"></span></button>
+    <button data-action="record" id="b_record" class="tog"><span class="t">Record</span><span class="m"></span></button>
+    <div class="timer"><span class="v" id="v_timer">00:00.0</span><span class="u">timer</span></div>
+  </div>
+  <div class="grp" id="laneGrp"><span class="gl">Your lanes (mph) · click a number = stop / go</span></div>
+  <div class="grp"><span class="gl">Traffic</span>
+    <button data-action="allStop" class="tog" style="--c:var(--red)"><span class="t">Stop all</span><span class="m"></span></button>
+    <button data-action="auto" class="tog" style="--c:var(--peach)"><span class="t">Auto</span><span class="m"></span></button>
+    <button data-action="mad" class="tog" style="--c:var(--red)" title="traffic gone mad (J)"><span class="t">Mad</span><span class="m"></span></button>
+    <button data-action="othersSlower" class="small"><span class="t">−</span><span class="m"></span></button>
+    <div class="val"><span class="v" id="v_others">100%</span><span class="u">others</span></div>
+    <button data-action="othersFaster" class="small"><span class="t">+</span><span class="m"></span></button>
+  </div>
+  <div class="grp"><span class="gl">Helicopter</span>
+    <button data-action="up" class="small" title="higher"><span class="t">▲</span><span class="m"></span></button>
+    <div class="val"><span class="v" id="v_alt">400</span><span class="u">ft up</span></div>
+    <button data-action="down" class="small" title="lower"><span class="t">▼</span><span class="m"></span></button>
+    <button data-action="tilt"><span class="t" id="t_tilt">Tilt ⤢</span><span class="m"></span></button>
+    <button data-action="approach" class="tog" style="--c:var(--sky)" title="hold: fly toward what you are looking at (W)"><span class="t">Approach ⇡</span><span class="m"></span></button>
+    <button data-action="retreat" class="tog" style="--c:var(--sky)" title="hold: fly back (S)"><span class="t">Back ⇣</span><span class="m"></span></button>
+    <button data-action="follow" class="tog" style="--c:var(--sky)"><span class="t">Follow</span><span class="m"></span></button>
+    <button data-action="hover"><span class="t">Hover</span><span class="m"></span></button>
+    <button data-action="heliSlower" class="small"><span class="t">−</span><span class="m"></span></button>
+    <div class="val"><span class="v" id="v_heli">0</span><span class="u">mph</span></div>
+    <button data-action="heliFaster" class="small"><span class="t">+</span><span class="m"></span></button>
+  </div>
+  <div class="grp"><span class="gl">Roads</span>
+    <button data-action="interchange" class="tog" style="--c:var(--lilac)"><span class="t">Interchanges</span><span class="m"></span></button>
+    <button data-action="suburbs" class="tog" style="--c:var(--peach)"><span class="t">Suburbs</span><span class="m"></span></button>
+    <button data-action="boxes" class="tog" style="--c:var(--sky)" title="wire boxes instead of the car photos (K)"><span class="t">Boxes</span><span class="m"></span></button>
+    <button data-action="laneTint" class="tog" style="--c:var(--rose)" title="your 8 lanes painted in their lane colours (L)"><span class="t">Lane colours</span><span class="m"></span></button>
+    <button data-action="prevX"><span class="t">◂ Prev</span><span class="m"></span></button>
+    <button data-action="nextX"><span class="t">Next ▸</span><span class="m"></span></button>
+  </div>
+  <div class="grp"><span class="gl">Setup</span>
+    <button data-action="hud" class="tog" style="--c:var(--butter)" title="the text in the corners of the picture (I or H)"><span class="t">Info</span><span class="m"></span></button>
+    <button data-action="sound" class="tog" style="--c:var(--mint)"><span class="t">Sound</span><span class="m"></span></button>
+    <button id="b_midi"><span class="t">MIDI</span><span class="m" id="midiChip">off</span></button>
+    <button id="b_help"><span class="t">?</span><span class="m">help</span></button>
+  </div>
+</div>
+
+<!-- all local: three.js r186 (MIT), mp4-muxer 5.2.1 (MIT), the CT45 MIDI layer -->
+<script src="CT30.A7.Highways_lib/three.r186.min.js"></script>
+<script src="CT30.A7.Highways_lib/mp4-muxer.5.2.1.js"></script>
+<script src="CT30.A7.Highways_lib/ct45.profiles.js"></script>
+<script src="CT30.A7.Highways_lib/ct45midi.js"></script>
+<script src="CT30.A7.Highways_midimap.js"></script>
+<script src="CT30.A7.Highways_sound.js"></script>
+<script src="CT30.A7.Highways_rec.js"></script>
+<script src="CT30.A7.Highways_suburbs.js"></script>
+<script src="CT30.A7.Highways_cars.js"></script>
+<script src="CT30.A7.Highways_roads.js"></script>
+<script src="CT30.A7.Highways_main.js"></script>
+<script src="CT30.A7.Highways_midi.js"></script>
+</body>
+</html>
